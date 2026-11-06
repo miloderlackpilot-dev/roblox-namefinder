@@ -56,6 +56,19 @@
       <p id="notice" class="notice" role="status">Ready. Checks run from your browser and may be limited by Roblox or browser cross-origin rules.</p>
     </section>
 
+    <section class="panel manual-panel" aria-labelledby="manual-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">QUICK CHECK</p><h2 id="manual-title">Check a specific username</h2></div>
+      </div>
+      <div class="manual-row">
+        <label class="field" for="manual-name">Username
+          <input id="manual-name" type="text" maxlength="20" autocomplete="off" placeholder="Enter a Roblox username">
+        </label>
+        <button id="manual-check" class="button secondary">Check username</button>
+      </div>
+      <p id="manual-result" class="notice" role="status">Check one name without starting a scan.</p>
+    </section>
+
     <section class="stats-grid" aria-label="Scan statistics">
       <article class="stat-card"><span class="stat-label">Checked</span><strong id="checked">0</strong><span class="stat-foot">this search</span></article>
       <article class="stat-card"><span class="stat-label">Available</span><strong id="available" class="green">0</strong><span class="stat-foot">confirmed by response</span></article>
