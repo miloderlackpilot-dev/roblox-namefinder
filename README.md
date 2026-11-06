@@ -6,6 +6,7 @@ A static browser-based tool for generating 3- and 4-letter username candidates a
 
 - Generates all 3-letter and 4-letter combinations in a shuffled, reproducible order.
 - Checks candidates one at a time.
+- Checks a single username on demand without starting a scan.
 - Saves progress and confirmed available names in browser local storage.
 - Supports pausing, resuming, and exporting available names to a text file.
 - Does not ask for a Roblox password, session cookie, or authentication token.
