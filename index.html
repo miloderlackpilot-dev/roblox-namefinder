@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10131c">
+  <meta name="description" content="Generate short Roblox username ideas and check them one at a time.">
+  <title>Roblox Name Finder</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="./"><span class="brand-mark">R</span><span>NAMEFINDER</span></a>
+      <span class="status-pill"><span class="dot"></span> Browser-based</span>
+    </header>
+
+    <section class="hero">
+      <p class="eyebrow">ROBLOX USERNAME TOOL</p>
+      <h1>Find a name<br><span>that feels yours.</span></h1>
+      <p class="intro">Generate short username ideas, check them one at a time, and keep your results saved in this browser.</p>
+    </section>
+
+    <section class="panel controls" aria-labelledby="settings-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">01 / CONFIGURE</p><h2 id="settings-title">Your search</h2></div>
+        <span class="muted">474,552 possible 3–4 letter names</span>
+      </div>
+      <div class="control-grid">
+        <label class="field">Username length
+          <select id="length">
+            <option value="both">3 and 4 letters</option>
+            <option value="3">3 letters only</option>
+            <option value="4">4 letters only</option>
+          </select>
+        </label>
+        <label class="field">How many to check
+          <input id="limit" type="number" min="1" max="5000" value="50">
+          <small>Maximum 5,000 per run. You can resume later.</small>
+        </label>
+        <label class="field">Request interval
+          <select id="delay">
+            <option value="2000">2 seconds, cautious</option>
+            <option value="3000">3 seconds</option>
+            <option value="5000">5 seconds</option>
+          </select>
+          <small>One request at a time. No proxy or limit evasion.</small>
+        </label>
+      </div>
+      <div class="actions">
+        <button id="start" class="button primary">Start checking <span>↗</span></button>
+        <button id="pause" class="button secondary" disabled>Pause</button>
+        <button id="reset" class="button ghost">Reset progress</button>
+      </div>
+      <p id="notice" class="notice" role="status">Ready. Checks run from your browser and may be limited by Roblox or browser cross-origin rules.</p>
+    </section>
+
+    <section class="stats-grid" aria-label="Scan statistics">
+      <article class="stat-card"><span class="stat-label">Checked</span><strong id="checked">0</strong><span class="stat-foot">this search</span></article>
+      <article class="stat-card"><span class="stat-label">Available</span><strong id="available" class="green">0</strong><span class="stat-foot">confirmed by response</span></article>
+      <article class="stat-card"><span class="stat-label">Taken / invalid</span><strong id="taken">0</strong><span class="stat-foot">not available</span></article>
+      <article class="stat-card"><span class="stat-label">Unconfirmed</span><strong id="unknown">0</strong><span class="stat-foot">network or API issue</span></article>
+    </section>
+
+    <section class="panel progress-panel">
+      <div class="progress-top"><div><p class="eyebrow">02 / LIVE SCAN</p><h2>Search progress</h2></div><strong id="percent">0%</strong></div>
+      <div class="progress-track"><div id="progress" class="progress-fill"></div></div>
+      <div class="progress-meta"><span id="progress-label">Waiting to start</span><span id="eta">No estimate yet</span></div>
+    </section>
+
+    <section class="panel results-panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">03 / RESULTS</p><h2>Available usernames</h2></div>
+        <button id="export" class="button secondary small">Export .txt</button>
+      </div>
+      <div id="empty" class="empty-state"><span class="empty-icon">⌕</span><strong>No confirmed names yet</strong><p>Available names will appear here when Roblox confirms them.</p></div>
+      <ul id="results" class="results-list" aria-live="polite"></ul>
+    </section>
+
+    <footer>
+      <p>Independent community project. Not affiliated with Roblox. Availability can change before you register a username.</p>
+      <p><a href="https://create.roblox.com/docs/cloud/reference/domains/auth" target="_blank" rel="noreferrer">Roblox API documentation ↗</a></p>
+    </footer>
+  </main>
+</body>
+</html>
