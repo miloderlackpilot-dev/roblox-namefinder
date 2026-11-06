@@ -79,7 +79,7 @@ async function validateUsername(username) {
   const code=Number(data.code);
   if(code===0) return {status:"available"};
   if(code===1) return {status:"taken"};
-  if(code===2 || code===3 || code===4 || code===10) return {status:"invalid"};
+  if(code===2) return {status:"invalid"};
   return {status:"unknown",detail:"Unrecognized API response"};
 }
 async function startScan() {
@@ -94,7 +94,7 @@ async function startScan() {
   cursor=state.cursor;
   if(cursor>=candidates.length){setNotice("This candidate set is complete. Reset progress to start a new shuffled search.","good");return;}
   running=true;pauseRequested=false;startedAt=Date.now();
-  $("start").disabled=true;$("pause").disabled=false;$("pause").textContent="Pause";
+  $("start").disabled=true;$("pause").disabled=false;$("pause").textContent="Pause";$("manual-check").disabled=true;
   setNotice("Scanning sequentially. If Roblox or your browser blocks the request, the result will be marked unconfirmed.","");
   let processed=0;
   while(running && !pauseRequested && cursor<candidates.length && processed<limit) {
@@ -119,13 +119,49 @@ async function startScan() {
     $("eta").textContent=processed>0 ? "This run: "+Math.round(elapsed/processed*(Math.min(limit,candidates.length-cursor))).toLocaleString()+"s estimated" : "Calculating";
     if(cursor<candidates.length && processed<limit && !pauseRequested) await wait(delay);
   }
-  running=false;$("start").disabled=false;$("pause").disabled=true;$("pause").textContent="Pause";
+  running=false;$("start").disabled=false;$("pause").disabled=true;$("pause").textContent="Pause";$("manual-check").disabled=false;
   if(pauseRequested) setNotice("Paused. Your progress is saved in this browser.","good");
   else if(cursor>=candidates.length) setNotice("All candidates in this length selection have been traversed.","good");
   else if(processed>=limit) setNotice("Run complete. Progress saved. Start again to continue from the next candidate.","good");
   saveState();updateUI();
 }
 $("start").addEventListener("click",startScan);
+$("manual-check").addEventListener("click", async()=>{
+  if(running)return;
+  const username=$("manual-name").value.trim();
+  const output=$("manual-result");
+  if(!/^[a-zA-Z0-9_]{3,20}$/.test(username)){
+    output.textContent="Enter 3 to 20 letters, numbers, or underscores.";
+    output.className="notice error";
+    return;
+  }
+  const button=$("manual-check");
+  button.disabled=true;
+  output.textContent="Checking with Roblox...";
+  output.className="notice";
+  try{
+    const result=await validateUsername(username);
+    if(result.status==="available"){
+      output.textContent=username+" appears available right now. Confirm again on Roblox before registering.";
+      output.className="notice good";
+    }else if(result.status==="taken"){
+      output.textContent=username+" is already taken.";
+      output.className="notice error";
+    }else if(result.status==="invalid"){
+      output.textContent=username+" is not valid under Roblox's username rules.";
+      output.className="notice error";
+    }else if(result.status==="ratelimited"){
+      output.textContent="Roblox rate-limited the request. Wait before checking again.";
+      output.className="notice error";
+    }else{
+      output.textContent="Could not confirm this username. "+(result.detail||"Try again later.");
+      output.className="notice error";
+    }
+  }catch{
+    output.textContent="Request failed. Your browser or network may block direct Roblox API access.";
+    output.className="notice error";
+  }finally{button.disabled=false;}
+});
 $("pause").addEventListener("click",()=>{pauseRequested=true;$("pause").disabled=true;});
 $("reset").addEventListener("click",()=>{
   if(running)return;
