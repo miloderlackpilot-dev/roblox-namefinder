@@ -71,17 +71,15 @@ function updateUI() {
 }
 function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 async function validateUsername(username) {
-  const response = await fetch("https://auth.roblox.com/v1/usernames/validate?request.username="+encodeURIComponent(username)+"&request.birthday=2000-01-01&request.context=Signup", {
-    method:"GET",
-    headers:{"Accept":"application/json"}
-  });
+  const url = "https://auth.roblox.com/v1/usernames/validate?request.username="+encodeURIComponent(username)+"&request.birthday=2000-01-01T00%3A00%3A00.000Z&request.context=Signup";
+  const response = await fetch(url, {method:"GET",headers:{"Accept":"application/json"}});
   if(response.status===429) return {status:"ratelimited"};
   if(!response.ok) return {status:"unknown",detail:"HTTP "+response.status};
   const data=await response.json();
-  const code=Number(data.code ?? data.data);
+  const code=Number(data.code);
   if(code===0) return {status:"available"};
   if(code===1) return {status:"taken"};
-  if(code===2 || code===3 || code===4) return {status:"invalid"};
+  if(code===2 || code===3 || code===4 || code===10) return {status:"invalid"};
   return {status:"unknown",detail:"Unrecognized API response"};
 }
 async function startScan() {
@@ -137,7 +135,8 @@ $("reset").addEventListener("click",()=>{
 });
 $("length").addEventListener("change",()=>{
   if(running)return;
-  $("reset").click();
+  state={checked:0,available:[],taken:0,unknown:0,seed:null,cursor:0,length:$("length").value};
+  candidates=[];saveState();updateUI();$("eta").textContent="No estimate yet";setNotice("Length changed. A new shuffled search is ready.");
 });
 $("export").addEventListener("click",()=>{
   if(!state.available.length){setNotice("There are no confirmed available names to export.");return;}
