@@ -39,3 +39,18 @@ The checker uses one request at a time with a configurable delay. A rate-limit r
 - The browser stores progress locally. Clearing browser data removes that progress.
 - The initial version limits each run to 5,000 checks. Continue in later runs to resume.
 - This project is unofficial and is not affiliated with Roblox Corporation.
+
+
+## Connect the Roblox checker (one-time setup)
+
+GitHub Pages cannot call Roblox's username-validation API directly from a browser because Roblox does not allow the required cross-origin browser request. This project uses a small Cloudflare Worker as a server-side relay.
+
+1. Create a free account at [Cloudflare](https://dash.cloudflare.com/).
+2. Open **Workers & Pages**, choose **Create**, then **Create Worker**.
+3. Give it a name such as `roblox-name-checker`.
+4. Choose **Edit code** and replace the sample code with the complete contents of [worker/roblox-checker.js](worker/roblox-checker.js) from this repository.
+5. Save and deploy the Worker. Copy its public URL, for example `https://roblox-name-checker.YOUR-SUBDOMAIN.workers.dev`.
+6. In `app.js`, replace the `CHECKER_API` placeholder with your exact Worker URL, including `https://`.
+7. Commit the change to `main`. GitHub Actions will publish the updated website.
+
+The Worker only accepts requests from this project's GitHub Pages origin and only checks one username per request. The browser scan remains sequential and stops when Roblox rate-limits it. A server-side relay fixes browser CORS restrictions, but it does not guarantee that Roblox will always accept requests or that a name will remain available.
