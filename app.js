@@ -1,7 +1,7 @@
 const $ = (id) => document.getElementById(id);
 const CHECKER_API = "https://roblox-name-checker.miosillyfemboy.workers.dev";
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz";
-const CHECK_DELAY_MS = 2500;
+const METRICS_API = CHECKER_API + "/metrics";
 const REQUEST_TIMEOUT_MS = 15000;
 const realWords = {
   3: ["ace","air","ant","arc","ash","bay","bee","bet","bid","bit","bow","box","bud","bug","cap","cat","cob","cod","cup","cut","day","dew","dog","dot","dry","ear","eat","egg","elf","elk","end","eye","fan","far","fax","fig","fin","fit","fix","fly","fog","fox","fun","gap","gem","get","gum","gun","gut","ham","hat","hen","hey","hid","hit","hop","hot","hug","ice","ink","ivy","jam","jar","jet","job","joy","key","kid","kit","law","leg","let","lid","lie","lip","log","lot","low","map","mat","mix","mud","net","new","nod","not","oak","odd","off","oil","old","one","orb","owl","own","pan","paw","pay","pea","pen","pet","pie","pig","pin","pop","pot","ram","rap","raw","red","rib","rid","rim","rip","rob","rod","row","rub","rug","run","sad","sea","see","set","sew","sky","son","sun","tag","tan","tap","tea","ten","tie","tip","toe","top","toy","van","vet","via","war","wax","web","wet","win","wow","yak","yes","zip","zoo"],
@@ -297,7 +297,6 @@ $("generate-check").addEventListener("click", async () => {
           return;
         }
 
-        if (!stopRequested) await wait(CHECK_DELAY_MS);
       }
 
       if (stopRequested) break;
@@ -344,3 +343,35 @@ $("manual-check").addEventListener("click", async () => {
 $("manual-name").addEventListener("keydown", (event) => {
   if (event.key === "Enter") $("manual-check").click();
 });
+
+
+function formatRate(value) {
+  return Number(value || 0).toFixed(1);
+}
+
+async function refreshRateDashboard() {
+  try {
+    const response = await fetch(METRICS_API, { headers: { "Accept": "application/json" }, cache: "no-store" });
+    if (!response.ok) throw new Error("Metrics endpoint returned HTTP " + response.status);
+    const data = await response.json();
+    $("site-rate").textContent = formatRate(data.websiteRequestsPerMinute);
+    $("roblox-rate").textContent = formatRate(data.robloxChecksPerMinute);
+    $("target-rate").textContent = String(data.targetChecksPerMinute || 0);
+    $("total-checked").textContent = String(data.robloxChecksTotal || 0);
+    $("rate-limited").textContent = String(data.rateLimited || 0);
+    $("rate-errors").textContent = String(data.errors || 0);
+    const cooldown = Number(data.cooldownUntil || 0) - Date.now();
+    $("rate-state").textContent = cooldown > 0
+      ? "Cooling down for " + Math.ceil(cooldown / 1000) + "s"
+      : data.lastStatus || "Waiting for checks";
+    $("rate-interval").textContent = (Number(data.intervalMs || 2500) / 1000).toFixed(2) + "s between checks";
+    $("rate-updated").textContent = "Updated " + new Date(data.updatedAt || Date.now()).toLocaleTimeString();
+  } catch {
+    $("rate-state").textContent = "Metrics unavailable. Deploy the updated Worker and Durable Object.";
+    $("site-rate").textContent = "—";
+    $("roblox-rate").textContent = "—";
+  }
+}
+
+refreshRateDashboard();
+setInterval(refreshRateDashboard, 5000);
