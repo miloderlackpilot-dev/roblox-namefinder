@@ -1,7 +1,9 @@
-name: Deploy static site to GitHub Pages
+name: Validate and deploy static site
 
 on:
   push:
+    branches: ["main"]
+  pull_request:
     branches: ["main"]
   workflow_dispatch:
 
@@ -15,7 +17,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check JavaScript syntax
+        run: |
+          node --check app.js
+          node --check worker/roblox-checker.js
+      - name: Check HTML references and word lists
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const assert = require("node:assert/strict");
+          const html = fs.readFileSync("index.html", "utf8");
+          const app = fs.readFileSync("app.js", "utf8");
+          const ids = [...html.matchAll(/\\bid="([^"]+)"/g)].map(match => match[1]);
+          assert.equal(ids.length, new Set(ids).size, "HTML contains duplicate IDs");
+          const usedIds = [...app.matchAll(/\\$\\("([^"]+)"\\)/g)].map(match => match[1]);
+          for (const id of new Set(usedIds)) assert(ids.includes(id), "Missing HTML element: " + id);
+          for (const id of ["word-mode", "length", "count", "generate", "generate-check", "stop-check", "results", "manual-name", "manual-check"]) {
+            assert(ids.includes(id), "Required UI element missing: " + id);
+          }
+          const wordObject = app.match(/const realWords = (\\{[\\s\\S]*?\\n\\});/);
+          assert(wordObject, "Word list not found");
+          const words = Function("return (" + wordObject[1] + ")")();
+          for (const [length, list] of Object.entries(words)) {
+            assert(list.length > 0, "Empty word list for " + length);
+            assert(list.every(word => word.length === Number(length) && /^[a-z]+$/.test(word)), "Invalid word length or characters in " + length + "-letter list");
+            assert.equal(list.length, new Set(list).size, "Duplicate words in " + length + "-letter list");
+          }
+          console.log("Static site checks passed.");
+          NODE
+
   deploy:
+    if: github.event_name != 'pull_request'
+    needs: validate
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
