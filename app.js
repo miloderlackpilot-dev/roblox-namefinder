@@ -133,10 +133,15 @@ function generateIdeas(excludedNames = new Set()) {
   const count = Number($("count").value);
   const names = new Set();
 
-  while (names.size < count) {
+  const maxUnique = Math.pow(alphabet.length, length) - excludedNames.size;
+  if (maxUnique < count) throw new Error("No more unique usernames of this length are available.");
+  let attempts = 0;
+  while (names.size < count && attempts < count * 100) {
+    attempts += 1;
     const candidate = randomName(length);
     if (!excludedNames.has(candidate)) names.add(candidate);
   }
+  if (names.size < count) throw new Error("Could not generate another unique batch.");
 
   const list = $("results");
   list.replaceChildren();
@@ -219,12 +224,11 @@ $("generate-check").addEventListener("click", async () => {
       }
 
       if (stopRequested) break;
-      setNotice(notice, "No available name in batch " + batchNumber + ". Starting the next batch. " + checkedTotal + " checked so far.");
-      await wait(CHECK_DELAY_MS);
+      setNotice(notice, "Batch " + batchNumber + " complete. Automatically generating batch " + (batchNumber + 1) + ". " + checkedTotal + " checked so far.");
     }
     setNotice(notice, "Search stopped. " + checkedTotal + " usernames checked across " + batchNumber + " batches.");
   } catch (error) {
-    setNotice(notice, "The automatic search stopped because of an unexpected error.", "error");
+    setNotice(notice, error && error.message ? "Automatic search stopped: " + error.message : "The automatic search stopped because of an unexpected error.", "error");
   } finally {
     batchRunning = false;
     stopRequested = false;
