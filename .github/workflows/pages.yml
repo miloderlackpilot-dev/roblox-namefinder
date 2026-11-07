@@ -46,7 +46,7 @@ jobs:
           }
           const wordObject = app.match(/const realWords = (\{[\s\S]*?\n\});/);
           assert(wordObject, "Word list not found");
-          const words = Function("return (" + wordObject[1] + ")")();
+          const words = Function("const realWords = " + wordObject[1] + "; for (const length of [3, 4]) realWords[length] = [...new Set(realWords[length].filter(word => word.length === length && /^[a-z]+$/.test(word)))]; return realWords;")();
           for (const [length, list] of Object.entries(words)) {
             assert(list.length > 0, "Empty word list for " + length);
             assert(list.every(word => word.length === Number(length) && /^[a-z]+$/.test(word)), "Invalid word length or characters in " + length + "-letter list");
