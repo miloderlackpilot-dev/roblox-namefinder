@@ -3,6 +3,7 @@ const CHECKER_API = "https://roblox-name-checker.miosillyfemboy.workers.dev";
 const alphabet = "abcdefghijklmnopqrstuvwxyz";
 const CHECK_DELAY_MS = 2500;
 let batchRunning = false;
+let stopRequested = false;
 const checkedNames = new Map();
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -127,12 +128,15 @@ function createIdea(username) {
   return item;
 }
 
-function generateIdeas() {
+function generateIdeas(excludedNames = new Set()) {
   const length = Number($("length").value);
   const count = Number($("count").value);
   const names = new Set();
 
-  while (names.size < count) names.add(randomName(length));
+  while (names.size < count) {
+    const candidate = randomName(length);
+    if (!excludedNames.has(candidate)) names.add(candidate);
+  }
 
   const list = $("results");
   list.replaceChildren();
@@ -145,89 +149,92 @@ function generateIdeas() {
 
 $("generate").addEventListener("click", generateIdeas);
 
+$("stop-check").addEventListener("click", () => {
+  stopRequested = true;
+  $("stop-check").disabled = true;
+  setNotice($("notice"), "Stopping after the current username check finishes.");
+});
+
 $("generate-check").addEventListener("click", async () => {
   if (batchRunning) return;
-
   const autoButton = $("generate-check");
   const generateButton = $("generate");
   const manualButton = $("manual-check");
+  const stopButton = $("stop-check");
   const notice = $("notice");
+  const seenNames = new Set();
+  let batchNumber = 0;
+  let checkedTotal = 0;
+
+  batchRunning = true;
+  stopRequested = false;
+  autoButton.disabled = true;
+  generateButton.disabled = true;
+  manualButton.disabled = true;
+  stopButton.hidden = false;
+  stopButton.disabled = false;
+  autoButton.textContent = "Searching…";
 
   try {
-    generateIdeas();
-    const items = Array.from($("results").querySelectorAll(".idea"));
+    while (!stopRequested) {
+      batchNumber += 1;
+      generateIdeas(seenNames);
+      const items = Array.from($("results").querySelectorAll(".idea"));
+      items.forEach((item) => seenNames.add(item.dataset.username));
 
-    if (items.length === 0) {
-      setNotice(notice, "Generate some usernames before checking.", "error");
-      return;
-    }
-
-    batchRunning = true;
-    autoButton.disabled = true;
-    generateButton.disabled = true;
-    manualButton.disabled = true;
-    autoButton.textContent = "Checking…";
-
-    items.forEach((item) => {
-      item.querySelector(".idea-check").disabled = true;
-    });
-
-    let completed = 0;
-    let stopReason = "";
-
-    for (let index = 0; index < items.length; index += 1) {
-      const item = items[index];
-      const username = item.dataset.username;
-      const status = item.querySelector(".idea-status");
-
-      status.textContent = "Checking…";
-      status.className = "idea-status";
-      setNotice(notice, "Checking " + (index + 1) + " of " + items.length + ": " + username);
-
-      let result;
-      try {
-        result = await validateUsername(username);
-      } catch (error) {
-        result = { status: "network-error", detail: "Could not connect to the checker." };
-      }
-
-      if (result.status === "network-error") {
-        status.textContent = "Unconfirmed";
+      for (let index = 0; index < items.length; index += 1) {
+        if (stopRequested) break;
+        const item = items[index];
+        const username = item.dataset.username;
+        const status = item.querySelector(".idea-status");
+        status.textContent = "Checking…";
         status.className = "idea-status";
-        stopReason = result.detail || "Network error. Batch stopped.";
-        break;
+        setNotice(notice, "Batch " + batchNumber + ", checking " + (index + 1) + " of " + items.length + ": " + username);
+
+        let result;
+        try {
+          result = await validateUsername(username);
+        } catch (error) {
+          result = { status: "network-error", detail: "Could not connect to the checker." };
+        }
+
+        if (result.status === "network-error" || result.status === "unknown" || result.status === "ratelimited") {
+          status.textContent = result.status === "ratelimited" ? "Rate limited" : "Unconfirmed";
+          status.className = "idea-status bad";
+          setNotice(notice, result.detail || "The checker could not confirm the result. Search stopped.", "error");
+          return;
+        }
+
+        const label = showResult(status, result);
+        checkedNames.set(username, label);
+        checkedTotal += 1;
+
+        if (result.status === "available") {
+          item.classList.add("idea-found");
+          item.setAttribute("aria-label", username + " appears available");
+          setNotice(notice, "Found a possible available username: " + username + ". Search stopped. Confirm it on Roblox.", "good");
+          return;
+        }
+        if (index < items.length - 1 && !stopRequested) await wait(CHECK_DELAY_MS);
       }
 
-      const label = showResult(status, result);
-      checkedNames.set(username, label);
-      completed += 1;
-
-      if (result.status === "ratelimited" || result.status === "unknown") {
-        stopReason = result.detail || (result.status === "ratelimited"
-          ? "Roblox rate-limited the checks."
-          : "The checker could not confirm the result.");
-        break;
-      }
-
-      if (index < items.length - 1) await wait(CHECK_DELAY_MS);
+      if (stopRequested) break;
+      setNotice(notice, "No available name in batch " + batchNumber + ". Starting the next batch. " + checkedTotal + " checked so far.");
+      await wait(CHECK_DELAY_MS);
     }
-
-    if (stopReason) {
-      setNotice(notice, completed + " of " + items.length + " checked. " + stopReason, "error");
-    } else {
-      setNotice(notice, "Batch check finished. " + completed + " of " + items.length + " usernames checked. Confirm available names on Roblox.", "good");
-    }
+    setNotice(notice, "Search stopped. " + checkedTotal + " usernames checked across " + batchNumber + " batches.");
   } catch (error) {
-    setNotice(notice, "The automatic check could not start. Refresh the page and try again.", "error");
+    setNotice(notice, "The automatic search stopped because of an unexpected error.", "error");
   } finally {
     batchRunning = false;
+    stopRequested = false;
     autoButton.disabled = false;
     generateButton.disabled = false;
     manualButton.disabled = false;
-    autoButton.textContent = "Generate & auto-check";
-    document.querySelectorAll(".idea-check").forEach((button) => {
-      button.disabled = false;
-    });
+    stopButton.hidden = true;
+    stopButton.disabled = false;
+    autoButton.textContent = "Find an available name";
+    document.querySelectorAll(".idea-check").forEach((button) => { button.disabled = false; });
   }
 });
 
