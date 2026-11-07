@@ -284,7 +284,21 @@ $("generate-check").addEventListener("click", async () => {
         status.textContent = label;
         status.className = "idea-status" + (className ? " " + className : "");
 
-        if (result.status === "unknown" || result.status === "ratelimited") {
+        if (result.status === "ratelimited") {
+          let remaining = Math.max(1000, Number(result.retryAfterMs) || 60000);
+          status.textContent = "Cooling down…";
+          status.className = "idea-status bad";
+          setNotice($("notice"), "Roblox asked the checker to slow down. Waiting " + Math.ceil(remaining / 1000) + " seconds, then this name will be retried.", "error");
+          while (remaining > 0 && !stopRequested) {
+            const step = Math.min(1000, remaining);
+            await wait(step);
+            remaining -= step;
+          }
+          if (stopRequested) break;
+          index -= 1;
+          continue;
+        }
+        if (result.status === "unknown") {
           setNotice($("notice"), result.detail + " Automatic search paused. You can try again later.", "error");
           return;
         }
