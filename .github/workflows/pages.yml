@@ -29,7 +29,7 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check app.js
-          node --check worker/roblox-checker.js
+          node --input-type=module --check < worker/roblox-checker.js
       - name: Check HTML references and word lists
         run: |
           node <<'NODE'
@@ -37,14 +37,14 @@ jobs:
           const assert = require("node:assert/strict");
           const html = fs.readFileSync("index.html", "utf8");
           const app = fs.readFileSync("app.js", "utf8");
-          const ids = [...html.matchAll(/\\bid="([^"]+)"/g)].map(match => match[1]);
+          const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
           assert.equal(ids.length, new Set(ids).size, "HTML contains duplicate IDs");
-          const usedIds = [...app.matchAll(/\\$\\("([^"]+)"\\)/g)].map(match => match[1]);
+          const usedIds = [...app.matchAll(/\$\("([^"]+)"\)/g)].map(match => match[1]);
           for (const id of new Set(usedIds)) assert(ids.includes(id), "Missing HTML element: " + id);
           for (const id of ["word-mode", "length", "count", "generate", "generate-check", "stop-check", "results", "manual-name", "manual-check"]) {
             assert(ids.includes(id), "Required UI element missing: " + id);
           }
-          const wordObject = app.match(/const realWords = (\\{[\\s\\S]*?\\n\\});/);
+          const wordObject = app.match(/const realWords = (\{[\s\S]*?\n\});/);
           assert(wordObject, "Word list not found");
           const words = Function("return (" + wordObject[1] + ")")();
           for (const [length, list] of Object.entries(words)) {
