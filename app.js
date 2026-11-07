@@ -7,7 +7,7 @@ const checkedNames = new Map();
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function setNotice(element, message, type = "") {
+function logLine(message, type = "") {\n  const log = $("terminal-log");\n  if (!log) return;\n  const line = document.createElement("div");\n  line.className = type ? "log-" + type : "";\n  line.textContent = "> " + message;\n  log.append(line);\n  while (log.children.length > 18) log.removeChild(log.firstChild);\n}\n\nfunction setNotice(element, message, type = "") {
   element.textContent = message;
   element.className = "notice " + type;
 }
@@ -20,7 +20,7 @@ function randomName(length) {
   return name;
 }
 
-async function validateUsername(username) {
+async function validateUsername(username) {\n  logLine("request: validate " + username);
   const response = await fetch(CHECKER_API, {
     method: "POST",
     headers: {
@@ -127,7 +127,7 @@ function createIdea(username) {
   return item;
 }
 
-function generateIdeas() {
+function generateIdeas() {\n  logLine("generating username candidates");
   const length = Number($("length").value);
   const count = Number($("count").value);
   const names = new Set();
@@ -140,7 +140,7 @@ function generateIdeas() {
 
   names.forEach((username) => list.append(createIdea(username)));
   $("idea-count").textContent = names.size + " ideas";
-  setNotice($("notice"), "Generated " + names.size + " ideas. Check individually or use Generate & auto-check.");
+  setNotice($("notice"), "Generated " + names.size + " ideas. Check individually or use Generate & auto-check.");\n  logLine(names.size + " candidates generated");
 }
 
 $("generate").addEventListener("click", generateIdeas);
@@ -165,7 +165,7 @@ $("generate-check").addEventListener("click", async () => {
   let stoppedEarly = false;
   try {
     for (let index = 0; index < items.length; index += 1) {
-      setNotice($("notice"), "Checking " + (index + 1) + " of " + items.length + "…");
+      setNotice($("notice"), "Checking " + (index + 1) + " of " + items.length + "…");\n      logLine("batch progress " + (index + 1) + "/" + items.length);
       const result = await checkIdea(items[index]);
 
       if (result.status === "ratelimited" || result.status === "network-error" || result.status === "unknown") {
