@@ -2,6 +2,7 @@ const $=id=>document.getElementById(id);
 const CHECKER_API="https://roblox-name-checker.miosillyfemboy.workers.dev";
 const alphabet="abcdefghijklmnopqrstuvwxyz";
 const checkedNames=new Map();
+let batchRunning=false;
 const CHECK_DELAY_MS=2500;
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function randomName(length){let s="";for(let i=0;i<length;i++)s+=alphabet[Math.floor(Math.random()*alphabet.length)];return s;}
@@ -40,9 +41,9 @@ function makeIdea(name){
    status.textContent="Unconfirmed";status.className="idea-status";checkedNames.set(name,"Unconfirmed");
    notice($("notice"),"Could not reach the checker. Automatic checking has stopped.","error");
    return{status:"network-error"};
-  }finally{button.disabled=false;}
+  }finally{button.disabled=batchRunning;}
  };
- button.addEventListener("click",runCheck);
+ button.addEventListener("click",()=>{if(!batchRunning)runCheck();});
  li.append(label,actions);actions.append(status,button);
  li.runCheck=runCheck;li.checkButton=button;
  return li;
@@ -60,7 +61,9 @@ $("generate-check").addEventListener("click",async()=>{
  generate();
  const button=$("generate-check"),generateButton=$("generate");
  const items=[...$("results").children];
- button.disabled=true;generateButton.disabled=true;
+ button.disabled=true;generateButton.disabled=true;batchRunning=true;
+ $("manual-check").disabled=true;
+ for(const item of items)item.checkButton.disabled=true;
  for(let i=0;i<items.length;i++){
   notice($("notice"),"Checking "+(i+1)+" of "+items.length+". One request every 2.5 seconds.");
   const result=await items[i].runCheck();
@@ -74,6 +77,9 @@ $("generate-check").addEventListener("click",async()=>{
  }
  const rateStopped=[...items].some(item=>item.querySelector(".idea-status").textContent==="Rate limited");
  if(!rateStopped)notice($("notice"),"Batch check finished. Available* names still need confirmation on Roblox.","good");
+ batchRunning=false;
+ for(const item of items)item.checkButton.disabled=false;
+ $("manual-check").disabled=false;
  button.disabled=false;generateButton.disabled=false;
 });
 $("manual-check").addEventListener("click",async()=>{
