@@ -1,6 +1,8 @@
 const $ = (id) => document.getElementById(id);
 const alphabet = "abcdefghijklmnopqrstuvwxyz";
 const STORAGE_KEY = "roblox-namefinder-v1";
+// Set this to your deployed Cloudflare Worker URL after creating the Worker.
+const CHECKER_API = "https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev";
 let state = loadState();
 let running = false;
 let pauseRequested = false;
@@ -71,16 +73,19 @@ function updateUI() {
 }
 function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 async function validateUsername(username) {
-  const url = "https://auth.roblox.com/v1/usernames/validate?request.username="+encodeURIComponent(username)+"&request.birthday=2000-01-01T00%3A00%3A00.000Z&request.context=Signup";
-  const response = await fetch(url, {method:"GET",headers:{"Accept":"application/json"}});
+  if(CHECKER_API.includes("YOUR-WORKER-NAME")) {
+    return {status:"unknown",detail:"The Cloudflare Worker has not been connected yet. Follow the setup steps in README.md."};
+  }
+  const response = await fetch(CHECKER_API, {
+    method:"POST",
+    headers:{"Content-Type":"application/json","Accept":"application/json"},
+    body:JSON.stringify({username})
+  });
   if(response.status===429) return {status:"ratelimited"};
-  if(!response.ok) return {status:"unknown",detail:"HTTP "+response.status};
+  if(!response.ok) return {status:"unknown",detail:"Checker server returned HTTP "+response.status};
   const data=await response.json();
-  const code=Number(data.code);
-  if(code===0) return {status:"available"};
-  if(code===1) return {status:"taken"};
-  if(code===2) return {status:"invalid"};
-  return {status:"unknown",detail:"Unrecognized API response"};
+  if(data.status==="available" || data.status==="taken" || data.status==="invalid" || data.status==="ratelimited") return data;
+  return {status:"unknown",detail:data.detail||"Unrecognized checker response"};
 }
 async function startScan() {
   if(running) return;
