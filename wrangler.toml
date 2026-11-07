@@ -1,0 +1,11 @@
+name = "roblox-name-checker"
+main = "worker/roblox-checker.js"
+compatibility_date = "2026-11-07"
+
+[[durable_objects.bindings]]
+name = "RATE_CONTROLLER"
+class_name = "RateController"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RateController"]
