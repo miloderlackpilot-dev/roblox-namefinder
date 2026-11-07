@@ -1,60 +1,135 @@
 const $ = (id) => document.getElementById(id);
 const CHECKER_API = "https://roblox-name-checker.miosillyfemboy.workers.dev";
-const alphabet = "abcdefghijklmnopqrstuvwxyz";
+const ALPHABET = "abcdefghijklmnopqrstuvwxyz";
+const CHECK_DELAY_MS = 2500;
+const REQUEST_TIMEOUT_MS = 15000;
 const realWords = {
   3: ["ace","air","ant","arc","ash","bay","bee","bet","bid","bit","bow","box","bud","bug","cap","cat","cob","cod","cup","cut","day","dew","dog","dot","dry","ear","eat","egg","elf","elk","end","eye","fan","far","fax","fig","fin","fit","fix","fly","fog","fox","fun","gap","gem","get","gum","gun","gut","ham","hat","hen","hey","hid","hit","hop","hot","hug","ice","ink","ivy","jam","jar","jet","job","joy","key","kid","kit","law","leg","let","lid","lie","lip","log","lot","low","map","mat","mix","mud","net","new","nod","not","oak","odd","off","oil","old","one","orb","owl","own","pan","paw","pay","pea","pen","pet","pie","pig","pin","pop","pot","ram","rap","raw","red","rib","rid","rim","rip","rob","rod","row","rub","rug","run","sad","sea","see","set","sew","sky","son","sun","tag","tan","tap","tea","ten","tie","tip","toe","top","toy","van","vet","via","war","wax","web","wet","win","wow","yak","yes","zip","zoo"],
   4: ["arch","aura","baby","back","bake","bald","bark","beam","bear","beat","bell","best","bird","blue","blur","boat","bold","bolt","bone","book","boom","born","bowl","calm","camp","cape","card","care","case","cash","cast","cave","chat","chef","chip","city","clay","clip","club","coal","coat","code","coil","cold","come","cook","cool","cope","core","corn","cove","crew","crop","cute","dawn","days","deer","desk","dial","dive","dock","dome","door","down","draw","drop","drum","dust","dusk","duty","each","earn","ease","east","easy","echo","edge","epic","even","ever","face","fact","fade","fair","fall","fame","farm","fast","fear","fern","fest","file","film","fire","fish","fizz","flag","flame","flat","flip","flow","flux","foam","fold","font","food","foot","fork","form","fort","free","frog","from","fuel","full","game","gate","gear","gem","gift","girl","give","glow","goal","goat","gold","good","gray","grew","grid","grin","grip","grow","gulf","guru","hair","half","hall","hand","hang","hard","hare","harm","haze","head","heal","heat","hero","hide","high","hill","hint","hold","hole","holy","home","hope","horn","host","hour","hush","icon","idea","iron","isle","jade","jazz","jeep","joke","jump","june","keen","keep","knot","lace","lake","lamp","land","last","late","leaf","lean","lens","life","lift","like","lily","lime","line","link","lion","list","live","load","loft","logo","long","look","loop","love","luck","luna","lush","made","maze","melt","mild","mile","milk","mint","mist","moon","more","moss","move","myth","navy","near","neon","nest","nice","nine","nova","ocean","opal","open","orca","over","pace","pack","page","pain","pair","palm","park","path","peak","pearl","pear","pine","pink","play","plum","poem","pond","pool","pure","quad","quiz","race","rain","rare","reef","rest","rice","rich","ride","ring","rise","risk","road","roar","rock","role","rose","ruby","rule","rush","safe","sage","sail","salt","sand","save","seal","seed","self","silk","sing","site","size","skin","sky","slim","slow","snow","soft","solo","song","star","stay","stem","step","surf","swan","swim","tale","task","team","teal","tech","tent","text","thin","tide","tile","time","tiny","tire","toad","told","tune","twin","type","unit","user","vale","vast","veil","very","vibe","view","vine","void","volt","vote","wade","wage","wake","walk","wall","warm","wave","wear","west","wide","wild","wind","wing","wise","wish","wolf","wood","word","work","yarn","year","yoga","zero","zone"]
 };
-const CHECK_DELAY_MS = 2500;
-let batchRunning = false;
+
+let searchRunning = false;
 let stopRequested = false;
-const checkedNames = new Map();
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function setNotice(element, message, type = "") {
   element.textContent = message;
-  element.className = "notice " + type;
+  element.className = "notice" + (type ? " " + type : "");
+}
+
+function getSettings() {
+  const length = Number($("length").value);
+  const count = Number($("count").value);
+  const mode = $("word-mode").value;
+  if (![3, 4].includes(length)) throw new Error("Choose a 3-letter or 4-letter length.");
+  if (![8, 12, 20].includes(count)) throw new Error("Choose a valid batch size.");
+  if (!["random", "words"].includes(mode)) throw new Error("Choose a valid name style.");
+  return { length, count, mode };
 }
 
 function randomName(length) {
   let name = "";
   for (let i = 0; i < length; i += 1) {
-    name += alphabet[Math.floor(Math.random() * alphabet.length)];
+    name += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
   }
   return name;
 }
 
-async function validateUsername(username) {
-  const response = await fetch(CHECKER_API, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json"
-    },
-    body: JSON.stringify({ username })
-  });
-
-  let data = {};
-  try {
-    data = await response.json();
-  } catch {
-    return { status: "unknown", detail: "The checker returned an unreadable response." };
+function shuffle(items) {
+  for (let i = items.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
   }
-
-  if (response.status === 429 || data.status === "ratelimited") {
-    return { status: "ratelimited", detail: data.detail || "Roblox is rate-limiting checks." };
-  }
-
-  if (!response.ok) {
-    return { status: "unknown", detail: data.detail || "Checker returned HTTP " + response.status };
-  }
-
-  if (["available", "taken", "invalid"].includes(data.status)) return data;
-  return { status: "unknown", detail: data.detail || "Could not confirm availability." };
+  return items;
 }
 
-function showResult(statusElement, result) {
+function generateBatch(settings, excluded = new Set()) {
+  const { length, count, mode } = settings;
+  const names = [];
+
+  if (mode === "words") {
+    const pool = [...new Set(realWords[length])]
+      .filter((word) => word.length === length && !excluded.has(word));
+    if (pool.length < count) {
+      throw new Error("All available " + length + "-letter words in the word list have been checked.");
+    }
+    return shuffle(pool).slice(0, count);
+  }
+
+  const totalPossible = Math.pow(ALPHABET.length, length);
+  if (excluded.size >= totalPossible) {
+    throw new Error("Every possible " + length + "-letter combination has been checked.");
+  }
+
+  const batch = new Set();
+  let attempts = 0;
+  const attemptLimit = count * 1000;
+  while (batch.size < count && attempts < attemptLimit) {
+    attempts += 1;
+    const candidate = randomName(length);
+    if (!excluded.has(candidate)) batch.add(candidate);
+  }
+
+  // For the small 3-letter space, fall back to a complete scan near exhaustion.
+  if (batch.size < count && length === 3) {
+    for (let a = 0; a < ALPHABET.length && batch.size < count; a += 1) {
+      for (let b = 0; b < ALPHABET.length && batch.size < count; b += 1) {
+        for (let c = 0; c < ALPHABET.length && batch.size < count; c += 1) {
+          const candidate = ALPHABET[a] + ALPHABET[b] + ALPHABET[c];
+          if (!excluded.has(candidate)) batch.add(candidate);
+        }
+      }
+    }
+  }
+
+  if (batch.size < count) {
+    throw new Error("Not enough unchecked combinations remain to create another batch.");
+  }
+  names.push(...batch);
+  return names;
+}
+
+async function validateUsername(username) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(CHECKER_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify({ username }),
+      signal: controller.signal
+    });
+
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      return { status: "unknown", detail: "The checker returned an invalid response." };
+    }
+
+    if (response.status === 429 || data.status === "ratelimited") {
+      return { status: "ratelimited", detail: data.detail || "Roblox is rate-limiting requests." };
+    }
+    if (!response.ok) {
+      return { status: "unknown", detail: data.detail || "The checker returned HTTP " + response.status + "." };
+    }
+    if (["available", "taken", "invalid"].includes(data.status)) return data;
+    return { status: "unknown", detail: data.detail || "Roblox did not confirm this username." };
+  } catch (error) {
+    if (error.name === "AbortError") {
+      return { status: "unknown", detail: "The check timed out. Search paused to avoid sending duplicate requests." };
+    }
+    return { status: "unknown", detail: "Could not connect to the checker. Check your connection and try again." };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function statusLabel(result) {
   const labels = {
     available: ["Available*", "good"],
     taken: ["Taken", "bad"],
@@ -62,202 +137,181 @@ function showResult(statusElement, result) {
     ratelimited: ["Rate limited", "bad"],
     unknown: ["Unconfirmed", ""]
   };
-  const [label, className] = labels[result.status] || labels.unknown;
-  statusElement.textContent = label;
-  statusElement.className = "idea-status " + className;
-  return label;
+  return labels[result.status] || labels.unknown;
 }
 
-async function checkIdea(item) {
-  const username = item.dataset.username;
-  const status = item.querySelector(".idea-status");
-  const checkButton = item.querySelector(".idea-check");
+function renderIdeas(names) {
+  const list = $("results");
+  const fragment = document.createDocumentFragment();
 
-  checkButton.disabled = true;
+  names.forEach((username) => {
+    const item = document.createElement("li");
+    item.className = "idea";
+    item.dataset.username = username;
+
+    const name = document.createElement("span");
+    name.className = "idea-name";
+    name.textContent = username;
+
+    const actions = document.createElement("div");
+    actions.className = "idea-actions";
+
+    const status = document.createElement("span");
+    status.className = "idea-status";
+    status.textContent = "Not checked";
+
+    const checkButton = document.createElement("button");
+    checkButton.type = "button";
+    checkButton.className = "button secondary idea-check";
+    checkButton.textContent = "Check";
+    checkButton.addEventListener("click", () => checkSingleIdea(item));
+
+    actions.append(status, checkButton);
+    item.append(name, actions);
+    fragment.append(item);
+  });
+
+  list.replaceChildren(fragment);
+  $("empty").hidden = names.length > 0;
+  $("idea-count").textContent = names.length + (names.length === 1 ? " idea" : " ideas");
+}
+
+async function checkSingleIdea(item) {
+  if (searchRunning) return;
+  const button = item.querySelector(".idea-check");
+  const status = item.querySelector(".idea-status");
+  button.disabled = true;
   status.textContent = "Checking…";
   status.className = "idea-status";
 
-  try {
-    const result = await validateUsername(username);
-    const label = showResult(status, result);
-    checkedNames.set(username, label);
+  const result = await validateUsername(item.dataset.username);
+  const [label, className] = statusLabel(result);
+  status.textContent = label;
+  status.className = "idea-status" + (className ? " " + className : "");
 
-    if (result.status === "available") {
-      setNotice($("notice"), username + " appears available. Confirm on Roblox before registering.", "good");
-    } else if (result.status === "ratelimited") {
-      setNotice($("notice"), "Roblox is rate-limiting checks. The batch has stopped.", "error");
-    } else if (result.status === "unknown") {
-      setNotice($("notice"), result.detail, "error");
-    } else {
-      setNotice($("notice"), username + " is " + result.status + ".");
-    }
-    return result;
-  } catch (error) {
-    status.textContent = "Unconfirmed";
-    status.className = "idea-status";
-    checkedNames.set(username, "Unconfirmed");
-    setNotice($("notice"), "Could not connect to the checker. The batch has stopped.", "error");
-    return { status: "network-error" };
-  } finally {
-    checkButton.disabled = batchRunning;
-  }
-}
-
-function createIdea(username) {
-  const item = document.createElement("li");
-  item.className = "idea";
-  item.dataset.username = username;
-
-  const name = document.createElement("span");
-  name.className = "idea-name";
-  name.textContent = username;
-
-  const actions = document.createElement("div");
-  actions.className = "idea-actions";
-
-  const status = document.createElement("span");
-  status.className = "idea-status";
-  status.textContent = checkedNames.get(username) || "Not checked";
-
-  const checkButton = document.createElement("button");
-  checkButton.type = "button";
-  checkButton.className = "button secondary idea-check";
-  checkButton.textContent = "Check";
-  checkButton.addEventListener("click", () => {
-    if (!batchRunning) checkIdea(item);
-  });
-
-  actions.append(status, checkButton);
-  item.append(name, actions);
-  return item;
-}
-
-function generateIdeas(excludedNames = new Set()) {
-  const length = Number($("length").value);
-  const count = Number($("count").value);
-  const names = new Set();
-  const mode = $("word-mode").value;
-
-  if (mode === "words") {
-    const availableWords = realWords[length].filter((word) => !excludedNames.has(word));
-    if (availableWords.length < count) throw new Error("There are no more unused " + length + "-letter words for this search.");
-    for (let i = availableWords.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [availableWords[i], availableWords[j]] = [availableWords[j], availableWords[i]];
-    }
-    availableWords.slice(0, count).forEach((word) => names.add(word));
+  if (result.status === "available") {
+    item.classList.add("idea-found");
+    setNotice($("notice"), item.dataset.username + " appears available. Confirm on Roblox before registering.", "good");
+  } else if (result.status === "taken" || result.status === "invalid") {
+    setNotice($("notice"), item.dataset.username + " is " + result.status + ".");
   } else {
-    const maxUnique = Math.pow(alphabet.length, length) - excludedNames.size;
-    if (maxUnique < count) throw new Error("No more unique usernames of this length are available.");
-    let attempts = 0;
-    while (names.size < count && attempts < count * 100) {
-      attempts += 1;
-      const candidate = randomName(length);
-      if (!excludedNames.has(candidate)) names.add(candidate);
-    }
-    if (names.size < count) throw new Error("Could not generate another unique batch.");
+    setNotice($("notice"), result.detail, "error");
   }
-
-  const list = $("results");
-  list.replaceChildren();
-  $("empty").hidden = true;
-
-  names.forEach((username) => list.append(createIdea(username)));
-  $("idea-count").textContent = names.size + " ideas";
-  setNotice($("notice"), "Generated " + names.size + (mode === "words" ? " real words." : " random combinations.") + " Check individually or use Find an available name."");
+  button.disabled = false;
 }
 
-$("generate").addEventListener("click", generateIdeas);
+function generateAndRender(excluded = new Set()) {
+  const settings = getSettings();
+  const names = generateBatch(settings, excluded);
+  renderIdeas(names);
+  setNotice($("notice"), "Generated " + names.length + (settings.mode === "words" ? " real words." : " random letter combinations."));
+  return names;
+}
+
+function setSearchControls(disabled) {
+  $("generate").disabled = disabled;
+  $("generate-check").disabled = disabled;
+  $("manual-check").disabled = disabled;
+  $("length").disabled = disabled;
+  $("count").disabled = disabled;
+  $("word-mode").disabled = disabled;
+  document.querySelectorAll(".idea-check").forEach((button) => {
+    button.disabled = disabled;
+  });
+  $("stop-check").hidden = !disabled;
+  $("stop-check").disabled = false;
+  $("generate-check").textContent = disabled ? "Searching…" : "Find an available name";
+}
+
+$("generate").addEventListener("click", () => {
+  if (searchRunning) return;
+  try {
+    generateAndRender();
+  } catch (error) {
+    setNotice($("notice"), error.message || "Could not generate names.", "error");
+  }
+});
 
 $("stop-check").addEventListener("click", () => {
+  if (!searchRunning) return;
   stopRequested = true;
   $("stop-check").disabled = true;
-  setNotice($("notice"), "Stopping after the current username check finishes.");
+  setNotice($("notice"), "Stopping after the current check finishes.");
 });
 
 $("generate-check").addEventListener("click", async () => {
-  if (batchRunning) return;
-  const autoButton = $("generate-check");
-  const generateButton = $("generate");
-  const manualButton = $("manual-check");
-  const stopButton = $("stop-check");
-  const notice = $("notice");
-  const seenNames = new Set();
-  let batchNumber = 0;
-  let checkedTotal = 0;
+  if (searchRunning) return;
 
-  batchRunning = true;
+  let settings;
+  try {
+    settings = getSettings();
+  } catch (error) {
+    setNotice($("notice"), error.message, "error");
+    return;
+  }
+
+  searchRunning = true;
   stopRequested = false;
-  autoButton.disabled = true;
-  generateButton.disabled = true;
-  manualButton.disabled = true;
-  stopButton.hidden = false;
-  stopButton.disabled = false;
-  autoButton.textContent = "Searching…";
+  setSearchControls(true);
+
+  const seenNames = new Set();
+  let checkedTotal = 0;
+  let batchNumber = 0;
 
   try {
     while (!stopRequested) {
       batchNumber += 1;
-      generateIdeas(seenNames);
-      const items = Array.from($("results").querySelectorAll(".idea"));
-      items.forEach((item) => seenNames.add(item.dataset.username));
+      const names = generateBatch(settings, seenNames);
+      names.forEach((name) => seenNames.add(name));
+      renderIdeas(names);
 
-      for (let index = 0; index < items.length; index += 1) {
+      for (let index = 0; index < names.length; index += 1) {
         if (stopRequested) break;
-        const item = items[index];
-        const username = item.dataset.username;
+
+        const username = names[index];
+        const item = $("results").querySelector('[data-username="' + username + '"]');
         const status = item.querySelector(".idea-status");
         status.textContent = "Checking…";
         status.className = "idea-status";
-        setNotice(notice, "Batch " + batchNumber + ", checking " + (index + 1) + " of " + items.length + ": " + username);
+        setNotice($("notice"), "Batch " + batchNumber + ". Checking " + (index + 1) + " of " + names.length + ": " + username);
 
-        let result;
-        try {
-          result = await validateUsername(username);
-        } catch (error) {
-          result = { status: "network-error", detail: "Could not connect to the checker." };
-        }
+        const result = await validateUsername(username);
+        const [label, className] = statusLabel(result);
+        status.textContent = label;
+        status.className = "idea-status" + (className ? " " + className : "");
 
-        if (result.status === "network-error" || result.status === "unknown" || result.status === "ratelimited") {
-          status.textContent = result.status === "ratelimited" ? "Rate limited" : "Unconfirmed";
-          status.className = "idea-status bad";
-          setNotice(notice, result.detail || "The checker could not confirm the result. Search stopped.", "error");
+        if (result.status === "unknown" || result.status === "ratelimited") {
+          setNotice($("notice"), result.detail + " Automatic search paused. You can try again later.", "error");
           return;
         }
 
-        const label = showResult(status, result);
-        checkedNames.set(username, label);
         checkedTotal += 1;
-
         if (result.status === "available") {
           item.classList.add("idea-found");
           item.setAttribute("aria-label", username + " appears available");
-          setNotice(notice, "Found a possible available username: " + username + ". Search stopped. Confirm it on Roblox.", "good");
+          setNotice($("notice"), "Found a possible available username: " + username + ". Search stopped. Confirm it on Roblox.", "good");
           return;
         }
-        if (index < items.length - 1 && !stopRequested) await wait(CHECK_DELAY_MS);
+
+        if (!stopRequested) await wait(CHECK_DELAY_MS);
       }
 
       if (stopRequested) break;
-      setNotice(notice, "Batch " + batchNumber + " complete. Automatically generating batch " + (batchNumber + 1) + ". " + checkedTotal + " checked so far.");
+      setNotice($("notice"), "Batch " + batchNumber + " complete. Starting batch " + (batchNumber + 1) + ". " + checkedTotal + " checked so far.");
     }
-    setNotice(notice, "Search stopped. " + checkedTotal + " usernames checked across " + batchNumber + " batches.");
+
+    setNotice($("notice"), "Search stopped. " + checkedTotal + " usernames checked across " + batchNumber + " batches.");
   } catch (error) {
-    setNotice(notice, error && error.message ? "Automatic search stopped: " + error.message : "The automatic search stopped because of an unexpected error.", "error");
+    setNotice($("notice"), error.message || "Automatic search stopped because of an unexpected error.", "error");
   } finally {
-    batchRunning = false;
+    searchRunning = false;
     stopRequested = false;
-    autoButton.disabled = false;
-    generateButton.disabled = false;
-    manualButton.disabled = false;
-    stopButton.hidden = true;
-    stopButton.disabled = false;
-    autoButton.textContent = "Find an available name";
-    document.querySelectorAll(".idea-check").forEach((button) => { button.disabled = false; });
+    setSearchControls(false);
   }
 });
 
 $("manual-check").addEventListener("click", async () => {
+  if (searchRunning) return;
   const username = $("manual-name").value.trim();
   const output = $("manual-result");
 
@@ -270,22 +324,17 @@ $("manual-check").addEventListener("click", async () => {
   button.disabled = true;
   setNotice(output, "Checking with Roblox…");
 
-  try {
-    const result = await validateUsername(username);
-    if (result.status === "available") {
-      setNotice(output, username + " appears available. Confirm on Roblox before registering.", "good");
-    } else if (result.status === "taken") {
-      setNotice(output, username + " is already taken.", "error");
-    } else if (result.status === "invalid") {
-      setNotice(output, username + " is invalid under Roblox's username rules.", "error");
-    } else {
-      setNotice(output, result.detail || "Could not confirm this username.", "error");
-    }
-  } catch (error) {
-    setNotice(output, "Could not reach the checker. Try again later.", "error");
-  } finally {
-    button.disabled = false;
+  const result = await validateUsername(username);
+  if (result.status === "available") {
+    setNotice(output, username + " appears available. Confirm on Roblox before registering.", "good");
+  } else if (result.status === "taken") {
+    setNotice(output, username + " is already taken.", "error");
+  } else if (result.status === "invalid") {
+    setNotice(output, username + " is invalid under Roblox's username rules.", "error");
+  } else {
+    setNotice(output, result.detail, "error");
   }
+  button.disabled = false;
 });
 
 $("manual-name").addEventListener("keydown", (event) => {
