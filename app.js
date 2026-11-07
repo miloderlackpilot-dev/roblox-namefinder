@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-const CHECKER_API="https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev";
+const CHECKER_API="https://roblox-name-checker.miosillyfemboy.workers.dev";
 const alphabet="abcdefghijklmnopqrstuvwxyz";
 const checkedNames=new Map();
 function randomName(length){let s="";for(let i=0;i<length;i++)s+=alphabet[Math.floor(Math.random()*alphabet.length)];return s;}
