@@ -72,15 +72,19 @@ function generateBatch(settings, excluded = new Set()) {
   }
 
   // For the small 3-letter space, fall back to a complete scan near exhaustion.
-  if (batch.size < count && length === 3) {
-    for (let a = 0; a < ALPHABET.length && batch.size < count; a += 1) {
-      for (let b = 0; b < ALPHABET.length && batch.size < count; b += 1) {
-        for (let c = 0; c < ALPHABET.length && batch.size < count; c += 1) {
-          const candidate = ALPHABET[a] + ALPHABET[b] + ALPHABET[c];
-          if (!excluded.has(candidate)) batch.add(candidate);
-        }
+  if (batch.size < count) {
+    const scan = (prefix, remaining) => {
+      if (batch.size >= count) return;
+      if (remaining === 0) {
+        if (!excluded.has(prefix)) batch.add(prefix);
+        return;
       }
-    }
+      for (const letter of ALPHABET) {
+        if (batch.size >= count) return;
+        scan(prefix + letter, remaining - 1);
+      }
+    };
+    scan("", length);
   }
 
   if (batch.size < count) {
