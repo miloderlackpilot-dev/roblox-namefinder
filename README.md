@@ -1,25 +1,28 @@
 # Roblox Name Finder
 
-A static website that generates short Roblox username ideas and lets a person check availability one name at a time.
+A static website that generates short Roblox username ideas and checks availability through a Cloudflare Worker.
 
 ## Features
-- Generate random 3-letter or 4-letter username ideas.
-- Manually check an individual generated name.
-- Manually enter and check another username.
-- Display available, taken, invalid, rate-limited, or unconfirmed results.
-- No account creation, login, registration form submission, or automatic bulk scanning.
+- Generate random 3-letter or 4-letter combinations.
+- Generate curated English words that are exactly 3 or 4 letters long.
+- Check individual generated ideas or enter a username manually.
+- Automatically generate and check new batches until a possible available name is found, the user stops the search, or Roblox cannot confirm a result.
+- Display available, taken, invalid, rate-limited, and unconfirmed states.
+- No account creation, login, signup submission, or registration automation.
 
 ## GitHub Pages
-The repository has a GitHub Actions workflow at `.github/workflows/pages.yml`. Set **Settings → Pages → Source** to **GitHub Actions**. Commits to `main` deploy the site.
+The `.github/workflows/pages.yml` workflow validates the JavaScript, UI references, and word lists before deploying the site. Set **Settings → Pages → Source** to **GitHub Actions**.
 
-## Connect availability checks
-The browser cannot reliably call Roblox's validation endpoint directly due to cross-origin restrictions. A Cloudflare Worker relays an individual user-requested check. It does not create accounts or submit registration forms.
+## Cloudflare Worker
+The browser calls a Cloudflare Worker because Roblox's validation endpoint does not reliably allow direct browser requests.
 
-1. Create a Cloudflare account and open **Workers & Pages**.
-2. Create a Worker named `roblox-name-checker`.
-3. Choose **Edit code** and replace the sample with [worker/roblox-checker.js](worker/roblox-checker.js).
-4. Deploy it and copy its `workers.dev` URL.
-5. In `app.js`, replace the `CHECKER_API` placeholder with your exact Worker URL.
-6. Commit the change to `main`. GitHub Actions deploys the updated website.
+1. Open Cloudflare **Workers & Pages**.
+2. Open the existing `roblox-name-checker` Worker.
+3. Replace its code with [worker/roblox-checker.js](worker/roblox-checker.js).
+4. Deploy the Worker.
+5. Confirm the `CHECKER_API` URL in `app.js` matches the deployed Worker URL.
 
-The Worker accepts requests from this project's GitHub Pages origin and forwards one username validation request. Roblox may still rate-limit or change the endpoint. When verification fails, the website shows an unconfirmed result. Availability can change before registration.
+The Worker only forwards username validation requests. It does not create accounts or submit registration forms. Roblox can rate-limit requests or change its endpoint. An available result is an indication only. Confirm the username on Roblox before registering.
+
+## Search behavior
+Automatic search checks names sequentially with a 2.5-second delay between requests. It starts the next batch automatically when every name in the current batch is taken or invalid. It stops on the first possible available name, a rate limit, an unconfirmed result, an unexpected error, or a user stop request.
