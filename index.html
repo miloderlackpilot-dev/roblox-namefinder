@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#10131c">
   <meta name="description" content="Generate short Roblox username ideas and check availability.">
   <title>Roblox Name Finder</title>
-  <link rel="stylesheet" href="styles.css?v=5">
-  <script src="app.js?v=5" defer></script>
+  <link rel="stylesheet" href="styles.css?v=6">
+  <script src="app.js?v=6" defer></script>
 </head>
 <body>
   <main class="shell">
@@ -61,6 +61,25 @@
       </div>
       <div id="empty" class="empty-state"><strong>Your ideas will appear here</strong><p>Generate a batch to get started.</p></div>
       <ul id="results" class="results-list" aria-live="polite"></ul>
+    </section>
+
+    <section class="panel" aria-labelledby="rate-heading">
+      <div class="section-heading">
+        <div><p class="eyebrow">LIVE / RATE MONITOR</p><h2 id="rate-heading">Request traffic</h2></div>
+        <span id="rate-state" class="rate-state">Connecting…</span>
+      </div>
+      <div class="rate-grid">
+        <article class="rate-card"><span>Website → Worker</span><strong><span id="site-rate">—</span><small> req/min</small></strong><p>Incoming username checks</p></article>
+        <article class="rate-card"><span>Worker → Roblox</span><strong><span id="roblox-rate">—</span><small> checks/min</small></strong><p>Requests sent upstream</p></article>
+        <article class="rate-card"><span>Current target rate</span><strong><span id="target-rate">—</span><small> checks/min</small></strong><p id="rate-interval">Adaptive interval</p></article>
+      </div>
+      <div class="rate-stats">
+        <span>Total checks <strong id="total-checked">0</strong></span>
+        <span>Rate limits <strong id="rate-limited">0</strong></span>
+        <span>Errors <strong id="rate-errors">0</strong></span>
+      </div>
+      <p id="rate-updated" class="notice">Metrics refresh every 5 seconds.</p>
+      <p class="rate-help">The Worker queues requests and adjusts its pace. After a Roblox rate limit, it pauses, slows down, and only increases the rate gradually after successful checks.</p>
     </section>
 
     <section class="panel" aria-labelledby="manual-heading">
