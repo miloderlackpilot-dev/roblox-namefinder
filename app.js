@@ -1,6 +1,10 @@
 const $ = (id) => document.getElementById(id);
 const CHECKER_API = "https://roblox-name-checker.miosillyfemboy.workers.dev";
 const alphabet = "abcdefghijklmnopqrstuvwxyz";
+const realWords = {
+  3: ["ace","air","ant","arc","ash","bay","bee","bet","bid","bit","bow","box","bud","bug","cap","cat","cob","cod","cup","cut","day","dew","dog","dot","dry","ear","eat","egg","elf","elk","end","eye","fan","far","fax","fig","fin","fit","fix","fly","fog","fox","fun","gap","gem","get","gum","gun","gut","ham","hat","hen","hey","hid","hit","hop","hot","hug","ice","ink","ivy","jam","jar","jet","job","joy","key","kid","kit","law","leg","let","lid","lie","lip","log","lot","low","map","mat","mix","mud","net","new","nod","not","oak","odd","off","oil","old","one","orb","owl","own","pan","paw","pay","pea","pen","pet","pie","pig","pin","pop","pot","ram","rap","raw","red","rib","rid","rim","rip","rob","rod","row","rub","rug","run","sad","sea","see","set","sew","sky","son","sun","tag","tan","tap","tea","ten","tie","tip","toe","top","toy","van","vet","via","war","wax","web","wet","win","wow","yak","yes","zip","zoo"],
+  4: ["arch","aura","baby","back","bake","bald","bark","beam","bear","beat","bell","best","bird","blue","blur","boat","bold","bolt","bone","book","boom","born","bowl","calm","camp","cape","card","care","case","cash","cast","cave","chat","chef","chip","city","clay","clip","club","coal","coat","code","coil","cold","come","cook","cool","cope","core","corn","cove","crew","crop","cute","dawn","days","deer","desk","dial","dive","dock","dome","door","down","draw","drop","drum","dust","dusk","duty","each","earn","ease","east","easy","echo","edge","epic","even","ever","face","fact","fade","fair","fall","fame","farm","fast","fear","fern","fest","file","film","fire","fish","fizz","flag","flame","flat","flip","flow","flux","foam","fold","font","food","foot","fork","form","fort","free","frog","from","fuel","full","game","gate","gear","gem","gift","girl","give","glow","goal","goat","gold","good","gray","grew","grid","grin","grip","grow","gulf","guru","hair","half","hall","hand","hang","hard","hare","harm","haze","head","heal","heat","hero","hide","high","hill","hint","hold","hole","holy","home","hope","horn","host","hour","hush","icon","idea","iron","isle","jade","jazz","jeep","joke","jump","june","keen","keep","knot","lace","lake","lamp","land","last","late","leaf","lean","lens","life","lift","like","lily","lime","line","link","lion","list","live","load","loft","logo","long","look","loop","love","luck","luna","lush","made","maze","melt","mild","mile","milk","mint","mist","moon","more","moss","move","myth","navy","near","neon","nest","nice","nine","nova","ocean","opal","open","orca","over","pace","pack","page","pain","pair","palm","park","path","peak","pearl","pear","pine","pink","play","plum","poem","pond","pool","pure","quad","quiz","race","rain","rare","reef","rest","rice","rich","ride","ring","rise","risk","road","roar","rock","role","rose","ruby","rule","rush","safe","sage","sail","salt","sand","save","seal","seed","self","silk","sing","site","size","skin","sky","slim","slow","snow","soft","solo","song","star","stay","stem","step","surf","swan","swim","tale","task","team","teal","tech","tent","text","thin","tide","tile","time","tiny","tire","toad","told","tune","twin","type","unit","user","vale","vast","veil","very","vibe","view","vine","void","volt","vote","wade","wage","wake","walk","wall","warm","wave","wear","west","wide","wild","wind","wing","wise","wish","wolf","wood","word","work","yarn","year","yoga","zero","zone"]
+};
 const CHECK_DELAY_MS = 2500;
 let batchRunning = false;
 let stopRequested = false;
@@ -132,16 +136,27 @@ function generateIdeas(excludedNames = new Set()) {
   const length = Number($("length").value);
   const count = Number($("count").value);
   const names = new Set();
+  const mode = $("word-mode").value;
 
-  const maxUnique = Math.pow(alphabet.length, length) - excludedNames.size;
-  if (maxUnique < count) throw new Error("No more unique usernames of this length are available.");
-  let attempts = 0;
-  while (names.size < count && attempts < count * 100) {
-    attempts += 1;
-    const candidate = randomName(length);
-    if (!excludedNames.has(candidate)) names.add(candidate);
+  if (mode === "words") {
+    const availableWords = realWords[length].filter((word) => !excludedNames.has(word));
+    if (availableWords.length < count) throw new Error("There are no more unused " + length + "-letter words for this search.");
+    for (let i = availableWords.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [availableWords[i], availableWords[j]] = [availableWords[j], availableWords[i]];
+    }
+    availableWords.slice(0, count).forEach((word) => names.add(word));
+  } else {
+    const maxUnique = Math.pow(alphabet.length, length) - excludedNames.size;
+    if (maxUnique < count) throw new Error("No more unique usernames of this length are available.");
+    let attempts = 0;
+    while (names.size < count && attempts < count * 100) {
+      attempts += 1;
+      const candidate = randomName(length);
+      if (!excludedNames.has(candidate)) names.add(candidate);
+    }
+    if (names.size < count) throw new Error("Could not generate another unique batch.");
   }
-  if (names.size < count) throw new Error("Could not generate another unique batch.");
 
   const list = $("results");
   list.replaceChildren();
@@ -149,7 +164,7 @@ function generateIdeas(excludedNames = new Set()) {
 
   names.forEach((username) => list.append(createIdea(username)));
   $("idea-count").textContent = names.size + " ideas";
-  setNotice($("notice"), "Generated " + names.size + " ideas. Check individually or use Generate & auto-check.");
+  setNotice($("notice"), "Generated " + names.size + (mode === "words" ? " real words." : " random combinations.") + " Check individually or use Find an available name."");
 }
 
 $("generate").addEventListener("click", generateIdeas);
