@@ -148,50 +148,85 @@ $("generate").addEventListener("click", generateIdeas);
 $("generate-check").addEventListener("click", async () => {
   if (batchRunning) return;
 
-  generateIdeas();
-  const items = Array.from($("results").children);
   const autoButton = $("generate-check");
   const generateButton = $("generate");
   const manualButton = $("manual-check");
+  const notice = $("notice");
 
-  batchRunning = true;
-  autoButton.disabled = true;
-  generateButton.disabled = true;
-  manualButton.disabled = true;
-  items.forEach((item) => {
-    item.querySelector(".idea-check").disabled = true;
-  });
-
-  let stoppedEarly = false;
   try {
-    for (let index = 0; index < items.length; index += 1) {
-      setNotice($("notice"), "Checking " + (index + 1) + " of " + items.length + "…");
-      const result = await checkIdea(items[index]);
+    generateIdeas();
+    const items = Array.from($("results").querySelectorAll(".idea"));
 
-      if (result.status === "ratelimited" || result.status === "network-error" || result.status === "unknown") {
-        stoppedEarly = true;
-        for (let next = index + 1; next < items.length; next += 1) {
-          items[next].querySelector(".idea-status").textContent = "Not checked";
-        }
+    if (items.length === 0) {
+      setNotice(notice, "Generate some usernames before checking.", "error");
+      return;
+    }
+
+    batchRunning = true;
+    autoButton.disabled = true;
+    generateButton.disabled = true;
+    manualButton.disabled = true;
+    autoButton.textContent = "Checking…";
+
+    items.forEach((item) => {
+      item.querySelector(".idea-check").disabled = true;
+    });
+
+    let completed = 0;
+    let stopReason = "";
+
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      const username = item.dataset.username;
+      const status = item.querySelector(".idea-status");
+
+      status.textContent = "Checking…";
+      status.className = "idea-status";
+      setNotice(notice, "Checking " + (index + 1) + " of " + items.length + ": " + username);
+
+      let result;
+      try {
+        result = await validateUsername(username);
+      } catch (error) {
+        result = { status: "network-error", detail: "Could not connect to the checker." };
+      }
+
+      if (result.status === "network-error") {
+        status.textContent = "Unconfirmed";
+        status.className = "idea-status";
+        stopReason = result.detail || "Network error. Batch stopped.";
+        break;
+      }
+
+      const label = showResult(status, result);
+      checkedNames.set(username, label);
+      completed += 1;
+
+      if (result.status === "ratelimited" || result.status === "unknown") {
+        stopReason = result.detail || (result.status === "ratelimited"
+          ? "Roblox rate-limited the checks."
+          : "The checker could not confirm the result.");
         break;
       }
 
       if (index < items.length - 1) await wait(CHECK_DELAY_MS);
     }
 
-    if (!stoppedEarly) {
-      setNotice($("notice"), "Batch check finished. Available* names still need confirmation on Roblox.", "good");
+    if (stopReason) {
+      setNotice(notice, completed + " of " + items.length + " checked. " + stopReason, "error");
+    } else {
+      setNotice(notice, "Batch check finished. " + completed + " of " + items.length + " usernames checked. Confirm available names on Roblox.", "good");
     }
   } catch (error) {
-    stoppedEarly = true;
-    setNotice($("notice"), "The batch stopped because an unexpected error occurred.", "error");
+    setNotice(notice, "The automatic check could not start. Refresh the page and try again.", "error");
   } finally {
     batchRunning = false;
     autoButton.disabled = false;
     generateButton.disabled = false;
     manualButton.disabled = false;
-    items.forEach((item) => {
-      item.querySelector(".idea-check").disabled = false;
+    autoButton.textContent = "Generate & auto-check";
+    document.querySelectorAll(".idea-check").forEach((button) => {
+      button.disabled = false;
     });
   }
 });
